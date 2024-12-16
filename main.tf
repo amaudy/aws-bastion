@@ -47,7 +47,7 @@ data "aws_subnets" "private" {
 resource "aws_security_group" "bastion" {
   name        = "${var.project_name}-${var.environment}-bastion-sg"
   description = "Security group for bastion host"
-  vpc_id      = data.aws_vpc.selected.id  # Updated to use data source
+  vpc_id      = data.aws_vpc.selected.id # Updated to use data source
 
   tags = {
     Name        = "${var.project_name}-${var.environment}-bastion-sg"
@@ -125,9 +125,9 @@ resource "aws_launch_template" "bastion" {
 resource "aws_autoscaling_group" "bastion" {
   name                = "${var.project_name}-${var.environment}-bastion-asg"
   desired_capacity    = 1
-  max_size           = 1
-  min_size           = 0
-  target_group_arns  = []
+  max_size            = 1
+  min_size            = 0
+  target_group_arns   = []
   vpc_zone_identifier = [tolist(data.aws_subnets.private.ids)[0]]
 
   launch_template {
@@ -137,19 +137,19 @@ resource "aws_autoscaling_group" "bastion" {
 
   tag {
     key                 = "Name"
-    value              = "${var.project_name}-${var.environment}-bastion"
+    value               = "${var.project_name}-${var.environment}-bastion"
     propagate_at_launch = true
   }
 
   tag {
     key                 = "Environment"
-    value              = var.environment
+    value               = var.environment
     propagate_at_launch = true
   }
 
   tag {
     key                 = "AutoScaling"
-    value              = "true"
+    value               = "true"
     propagate_at_launch = true
   }
 }
@@ -157,22 +157,22 @@ resource "aws_autoscaling_group" "bastion" {
 # Schedule to start instances (08:30 Bangkok time = 01:30 UTC)
 resource "aws_autoscaling_schedule" "start_bastion" {
   scheduled_action_name  = "start_bastion"
-  min_size              = 1
-  max_size              = 1
-  desired_capacity      = 1
-  recurrence            = "30 1 * * MON-FRI"
-  time_zone             = "Asia/Bangkok"
+  min_size               = 1
+  max_size               = 1
+  desired_capacity       = 1
+  recurrence             = "30 1 * * MON-FRI"
+  time_zone              = "Asia/Bangkok"
   autoscaling_group_name = aws_autoscaling_group.bastion.name
 }
 
 # Schedule to stop instances (20:00 Bangkok time = 13:00 UTC)
 resource "aws_autoscaling_schedule" "stop_bastion" {
   scheduled_action_name  = "stop_bastion"
-  min_size              = 0
-  max_size              = 0
-  desired_capacity      = 0
-  recurrence            = "00 20 * * MON-FRI"
-  time_zone             = "Asia/Bangkok"
+  min_size               = 0
+  max_size               = 0
+  desired_capacity       = 0
+  recurrence             = "00 20 * * MON-FRI"
+  time_zone              = "Asia/Bangkok"
   autoscaling_group_name = aws_autoscaling_group.bastion.name
 }
 
