@@ -3,18 +3,23 @@ provider "aws" {
 }
 
 # Get latest Ubuntu AMI
-data "aws_ami" "ubuntu" {
+data "aws_ami" "amazon_linux" {
   most_recent = true
-  owners      = ["099720109477"] # Canonical
+  owners      = ["amazon"]
 
   filter {
     name   = "name"
-    values = ["ubuntu/images/hvm-ssd/ubuntu-*-amd64-server-*"]
+    values = ["al2023-ami-*-x86_64"]
   }
 
   filter {
     name   = "virtualization-type"
     values = ["hvm"]
+  }
+
+  filter {
+    name   = "architecture"
+    values = ["x86_64"]
   }
 }
 
@@ -62,7 +67,7 @@ resource "aws_security_group" "bastion" {
 # Launch Template for Bastion
 resource "aws_launch_template" "bastion" {
   name_prefix   = "${var.project_name}-${var.environment}-bastion-"
-  image_id      = data.aws_ami.ubuntu.id
+  image_id      = data.aws_ami.amazon_linux.id
   instance_type = "t3.xlarge"
 
   network_interfaces {
@@ -99,7 +104,7 @@ resource "aws_launch_template" "bastion" {
   # Add SSM agent
   user_data = base64encode(<<-EOF
               #!/bin/bash
-              snap start amazon-ssm-agent
+              # No need to start SSM agent as it's pre-installed and auto-started in Amazon Linux
               EOF
   )
 }
