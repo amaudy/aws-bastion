@@ -104,7 +104,19 @@ resource "aws_launch_template" "bastion" {
   # Add SSM agent
   user_data = base64encode(<<-EOF
               #!/bin/bash
-              # No need to start SSM agent as it's pre-installed and auto-started in Amazon Linux
+              # Install Docker
+              dnf update -y
+              dnf install docker -y
+              systemctl enable docker
+              systemctl start docker
+
+              # Add ec2-user to docker group
+              usermod -a -G docker ec2-user
+
+              # Install Docker Compose
+              DOCKER_COMPOSE_VERSION="v2.24.5"
+              curl -L "https://github.com/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+              chmod +x /usr/local/bin/docker-compose
               EOF
   )
 }
@@ -243,4 +255,10 @@ resource "aws_vpc_endpoint" "ec2messages" {
     Name        = "${var.project_name}-${var.environment}-ec2messages-endpoint"
     Environment = var.environment
   }
+}
+
+# Update IAM role to allow ECR access (optional, if you need to pull from ECR)
+resource "aws_iam_role_policy_attachment" "bastion_ecr_policy" {
+  role       = aws_iam_role.bastion_ssm_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
 } 
