@@ -48,6 +48,15 @@ resource "aws_security_group" "bastion" {
     Name        = "${var.project_name}-${var.environment}-bastion-sg"
     Environment = var.environment
   }
+
+  # Add egress rule for SSM
+  egress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "Allow HTTPS outbound for SSM"
+  }
 }
 
 # Launch Template for Bastion
@@ -82,6 +91,17 @@ resource "aws_launch_template" "bastion" {
   lifecycle {
     create_before_destroy = true
   }
+
+  iam_instance_profile {
+    name = aws_iam_instance_profile.bastion_profile.name
+  }
+
+  # Add SSM agent
+  user_data = base64encode(<<-EOF
+              #!/bin/bash
+              snap start amazon-ssm-agent
+              EOF
+  )
 }
 
 # Auto Scaling Group
@@ -137,4 +157,85 @@ resource "aws_autoscaling_schedule" "stop_bastion" {
   recurrence            = "00 20 * * MON-FRI"
   time_zone             = "Asia/Bangkok"
   autoscaling_group_name = aws_autoscaling_group.bastion.name
+}
+
+# IAM role for SSM
+resource "aws_iam_role" "bastion_ssm_role" {
+  name = "${var.project_name}-${var.environment}-bastion-ssm-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+      }
+    ]
+  })
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-bastion-ssm-role"
+    Environment = var.environment
+  }
+}
+
+# Attach SSM policy to role
+resource "aws_iam_role_policy_attachment" "bastion_ssm_policy" {
+  role       = aws_iam_role.bastion_ssm_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+# Create instance profile
+resource "aws_iam_instance_profile" "bastion_profile" {
+  name = "${var.project_name}-${var.environment}-bastion-profile"
+  role = aws_iam_role.bastion_ssm_role.name
+}
+
+# Add VPC Endpoint for SSM (if not already exists)
+resource "aws_vpc_endpoint" "ssm" {
+  vpc_id             = data.aws_vpc.selected.id
+  service_name       = "com.amazonaws.${var.aws_region}.ssm"
+  vpc_endpoint_type  = "Interface"
+  subnet_ids         = [tolist(data.aws_subnets.private.ids)[0]]
+  security_group_ids = [aws_security_group.bastion.id]
+
+  private_dns_enabled = true
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-ssm-endpoint"
+    Environment = var.environment
+  }
+}
+
+resource "aws_vpc_endpoint" "ssmmessages" {
+  vpc_id             = data.aws_vpc.selected.id
+  service_name       = "com.amazonaws.${var.aws_region}.ssmmessages"
+  vpc_endpoint_type  = "Interface"
+  subnet_ids         = [tolist(data.aws_subnets.private.ids)[0]]
+  security_group_ids = [aws_security_group.bastion.id]
+
+  private_dns_enabled = true
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-ssmmessages-endpoint"
+    Environment = var.environment
+  }
+}
+
+resource "aws_vpc_endpoint" "ec2messages" {
+  vpc_id             = data.aws_vpc.selected.id
+  service_name       = "com.amazonaws.${var.aws_region}.ec2messages"
+  vpc_endpoint_type  = "Interface"
+  subnet_ids         = [tolist(data.aws_subnets.private.ids)[0]]
+  security_group_ids = [aws_security_group.bastion.id]
+
+  private_dns_enabled = true
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-ec2messages-endpoint"
+    Environment = var.environment
+  }
 } 
